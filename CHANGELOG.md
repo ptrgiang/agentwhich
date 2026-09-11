@@ -2,6 +2,27 @@
 
 All notable changes to `agentwhich` are documented here.
 
+## 0.4.0 - 2026-09-12
+
+### Added
+
+- `agentwhich snapshot` for deterministic repository-local context snapshots.
+- Historical snapshots from a Git ref without checking out or mutating the repository.
+- `agentwhich changed` for pull-request instruction impact analysis.
+- Merge-base comparison semantics for `--base` and `--head`.
+- Per-target added, removed, content-changed, phase-changed, and reordered instruction reporting.
+- Conservative `potential broader impact` reporting for changed instruction sources whose full scope cannot be proven.
+- `--fail-on-impact` for opt-in CI gating on confirmed context changes.
+- `--cwd` subtree scoping and a configurable `--max-targets` guard for monorepos.
+- Git impact and snapshot documentation in `docs/impact.md`.
+
+### Changed
+
+- Version bumped to 0.4.0.
+- CI now fetches full Git history and dogfoods `agentwhich changed` on pull requests.
+- README now documents snapshot, PR impact, and monorepo workflows.
+- Ref-aware snapshots isolate user-global agent configuration for deterministic output.
+
 ## 0.3.0 - 2026-09-12
 
 ### Added

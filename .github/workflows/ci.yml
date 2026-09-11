@@ -27,6 +27,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -39,6 +41,9 @@ jobs:
       - name: Policy self-check
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         run: agentwhich check --policy .agentwhich.toml
+      - name: PR impact smoke
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: agentwhich changed --base "${{ github.event.pull_request.base.sha }}" --head HEAD --format json
       - name: Build package
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         run: python -m build

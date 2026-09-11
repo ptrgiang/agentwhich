@@ -9,18 +9,20 @@ from .checks import evaluate_check, render_check_report
 from .compare import compare_results
 from .core import resolve
 from .discovery import repository_root
+from .impact import analyze_changes, render_impact
 from .policy import Policy, load_policy
 from .render import render_comparison, render_result
 from .sarif import render_sarif
+from .snapshot import capture_snapshot, render_snapshot
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 DEFAULT_AGENTS = 'codex,claude,gemini,copilot'
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentwhich',
-        description='which + diff for AI coding instructions',
+        description='inspect, compare, and enforce AI coding-agent instructions',
     )
     parser.add_argument('--version', action='version', version=f'agentwhich {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -63,6 +65,36 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument('--require-target', action='store_true', help='require --target to be provided')
     check.add_argument('--format', choices=('text', 'json', 'sarif'), default='text')
     check.add_argument('--output', default=None, help='write output to this file instead of stdout')
+
+    snapshot = sub.add_parser('snapshot', help='emit deterministic repo-local instruction context')
+    snapshot.add_argument('--agents', default=DEFAULT_AGENTS, help='comma-separated agent names')
+    snapshot.add_argument('--cwd', default='.', help='working directory to resolve from')
+    snapshot.add_argument('--repo', default=None, help='repository root; auto-detected from .git by default')
+    snapshot.add_argument(
+        '--target',
+        action='append',
+        default=[],
+        help='target path to snapshot; repeat for multiple targets; startup context when omitted',
+    )
+    snapshot.add_argument('--ref', default=None, help='optional Git ref; working tree when omitted')
+    snapshot.add_argument('--format', choices=('text', 'json'), default='json')
+    snapshot.add_argument('--output', default=None, help='write output to this file instead of stdout')
+
+    changed = sub.add_parser('changed', help='show coding-agent context changed by a Git diff')
+    changed.add_argument('--agents', default=DEFAULT_AGENTS, help='comma-separated agent names')
+    changed.add_argument('--cwd', default='.', help='scope and working directory; useful for monorepos')
+    changed.add_argument('--repo', default=None, help='Git repository root; auto-detected from .git by default')
+    changed.add_argument('--base', required=True, help='base Git ref; merge-base with --head is analyzed')
+    changed.add_argument('--head', default='HEAD', help='head Git ref; defaults to HEAD')
+    changed.add_argument(
+        '--max-targets',
+        type=int,
+        default=200,
+        help='maximum changed paths to evaluate; 0 disables the limit',
+    )
+    changed.add_argument('--fail-on-impact', action='store_true', help='exit 1 when instruction impact is detected')
+    changed.add_argument('--format', choices=('text', 'json'), default='text')
+    changed.add_argument('--output', default=None, help='write output to this file instead of stdout')
     return parser
 
 
@@ -126,10 +158,7 @@ def _run_check(args: argparse.Namespace) -> int:
             'no check assertions configured; add .agentwhich.toml or pass a check flag such as --require-instructions'
         )
 
-    results = [
-        resolve(agent, cwd=cwd, repo=repo, target=_optional_path(args.target))
-        for agent in agents
-    ]
+    results = [resolve(agent, cwd=cwd, repo=repo, target=_optional_path(args.target)) for agent in agents]
     report = evaluate_check(
         compare_results(results),
         policy,
@@ -144,6 +173,32 @@ def _run_check(args: argparse.Namespace) -> int:
         rendered = render_check_report(report, args.format)
     _write_output(rendered, args.output)
     return 0 if report.passed else 1
+
+
+def _run_snapshot(args: argparse.Namespace) -> int:
+    cwd = Path(args.cwd).expanduser().resolve(strict=False)
+    repo = _repo_path(cwd, _optional_path(args.repo))
+    agents = _parse_agents(args.agents)
+    targets = [Path(item) for item in args.target] or [None]
+    report = capture_snapshot(repo, cwd, agents, targets, ref=args.ref)
+    _write_output(render_snapshot(report, args.format), args.output)
+    return 0
+
+
+def _run_changed(args: argparse.Namespace) -> int:
+    cwd = Path(args.cwd).expanduser().resolve(strict=False)
+    repo = _repo_path(cwd, _optional_path(args.repo))
+    agents = _parse_agents(args.agents)
+    report = analyze_changes(
+        repo,
+        cwd,
+        agents,
+        base=args.base,
+        head=args.head,
+        max_targets=args.max_targets,
+    )
+    _write_output(render_impact(report, args.format), args.output)
+    return 1 if args.fail_on_impact and report.has_confirmed_impact else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -161,6 +216,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == 'check':
             return _run_check(args)
+        if args.command == 'snapshot':
+            return _run_snapshot(args)
+        if args.command == 'changed':
+            return _run_changed(args)
 
         agents = _parse_agents(args.agents)
         if len(agents) < 2:

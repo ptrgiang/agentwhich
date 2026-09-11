@@ -1,0 +1,7 @@
+version = 1
+agents = ["codex"]
+fail_on_warnings = true
+
+[rules.codex]
+require = ["AGENTS.md"]
+max_active = 2

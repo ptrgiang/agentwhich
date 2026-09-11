@@ -36,6 +36,9 @@ jobs:
         run: ruff check .
       - name: Test
         run: pytest
+      - name: Policy self-check
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: agentwhich check --policy .agentwhich.toml
       - name: Build package
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         run: python -m build

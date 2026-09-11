@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .model import ResolutionResult
+from .model import ResolutionResult, is_active
 
 
 @dataclass(slots=True)
@@ -15,17 +15,13 @@ class Comparison:
 
     @property
     def divergent(self) -> bool:
-        active_sets = [
-            {layer.path for layer in result.layers if layer.phase in {'startup', 'import'}}
-            for result in self.results
-        ]
+        active_sets = [{layer.path for layer in result.layers if is_active(layer)} for result in self.results]
         return any(items != active_sets[0] for items in active_sets[1:]) if active_sets else False
 
 
 def compare_results(results: list[ResolutionResult]) -> Comparison:
     active: dict[str, set[Path]] = {
-        result.agent: {layer.path for layer in result.layers if layer.phase in {'startup', 'import'}}
-        for result in results
+        result.agent: {layer.path for layer in result.layers if is_active(layer)} for result in results
     }
     all_paths = set().union(*active.values()) if active else set()
     shared = sorted(path for path in all_paths if all(path in paths for paths in active.values()))
@@ -37,7 +33,7 @@ def compare_results(results: list[ResolutionResult]) -> Comparison:
     hashes: dict[str, list[tuple[str, Path]]] = {}
     for result in results:
         for item in result.layers:
-            if item.sha256 and item.phase in {'startup', 'import'}:
+            if item.sha256 and is_active(item):
                 hashes.setdefault(item.sha256, []).append((result.agent, item.path))
     duplicate_hashes = {digest: items for digest, items in hashes.items() if len({agent for agent, _ in items}) > 1}
     return Comparison(

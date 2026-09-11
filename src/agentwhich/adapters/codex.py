@@ -28,7 +28,7 @@ class CodexResolver:
         return [str(name) for name in names if isinstance(name, str) and name.strip()]
 
     def resolve(self, repo: Path, cwd: Path, target: Path | None = None) -> ResolutionResult:
-        result = ResolutionResult(agent=self.name, repository=repo, cwd=cwd)
+        result = ResolutionResult(agent=self.name, repository=repo, cwd=cwd, target=target)
         order = 1
 
         global_dir = self._codex_home()
@@ -89,9 +89,4 @@ class CodexResolver:
                         selected=False,
                     )
                 )
-
-        if target is not None:
-            result.warnings.append(
-                'Codex target-file simulation is not required for AGENTS.md startup resolution in v0.1.'
-            )
         return result

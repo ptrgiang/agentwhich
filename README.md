@@ -1,149 +1,84 @@
 # agentwhich
 
-> **`which` + `diff` for AI coding instructions.**
+`which` + `diff` for AI coding-agent instructions.
 
-Why does Claude follow one repository rule while Codex ignores it?
+`agentwhich` answers a deceptively hard question: **what instruction files will this coding agent actually see here?**
+It works offline and read-only: no LLM, no API key, no network, no telemetry, and no runtime dependencies.
 
-`agentwhich` is a tiny, read-only CLI that predicts which repository instruction files an AI coding agent will load for a working directory, explains **why** each file applies, and compares the effective source set across agents.
+## Supported agents
 
-**No LLM. No API key. No network. No telemetry.**
-
-## The 20-second demo
-
-```bash
-pip install -e .
-agentwhich compare --cwd . --agents codex,claude,gemini
-```
-
-Example:
-
-```text
-CODEX
------
-   1 ./AGENTS.md
-
-CLAUDE
-------
-   1 ./CLAUDE.md
-
-GEMINI
-------
-   1 ./GEMINI.md
-
-DIFF
-----
-  codex-only:
-    ./AGENTS.md
-  claude-only:
-    ./CLAUDE.md
-  gemini-only:
-    ./GEMINI.md
-  shared by all: 0
-  status: divergent
-```
-
-Same repo. Same directory. Different AI context.
-
-## Why this exists
-
-AI coding tools do not discover project instructions the same way. Codex has `AGENTS.md` and `AGENTS.override.md` resolution, Claude Code has `CLAUDE.md`, local files, imports and rules, while Gemini CLI has hierarchical `GEMINI.md` context and imports.
-
-Humans see a folder tree. Agents see **different effective context graphs**.
-
-`agentwhich` makes that invisible configuration visible before you start an agent session.
+| Agent | Startup hierarchy | Imports | Target/path rules | JIT/descendant context |
+| --- | --- | --- | --- | --- |
+| Codex | ✅ | n/a | n/a | n/a |
+| Claude Code | ✅ | ✅ | ✅ `.claude/rules/**` | ✅ nested `CLAUDE.md` |
+| Gemini CLI | ✅ | ✅ | configurable context names | ✅ target-path `GEMINI.md` |
+| GitHub Copilot CLI | ✅ | ✅ supported files | ✅ `*.instructions.md` | ✅ target-path agent files |
 
 ## Install
 
-From source today:
-
-```bash
-git clone https://github.com/ptrgiang/agentwhich.git
-cd agentwhich
-python -m pip install -e .
-```
-
-For contributors:
-
 ```bash
 python -m pip install -e ".[dev]"
-pytest
-ruff check .
 ```
 
-## Commands
-
-Explain one agent:
+## Explain one agent
 
 ```bash
-agentwhich explain --agent codex --cwd services/payments
-agentwhich explain --agent claude --cwd services/payments
-agentwhich explain --agent gemini --cwd services/payments
+agentwhich explain --agent claude --cwd . --target src/api/handler.ts
 ```
 
-Compare agents:
+Phases are explicit:
+
+- `startup`: loaded when the session starts.
+- `import`: recursively referenced by an active instruction file.
+- `target`: becomes active because the supplied target path matches or triggers it.
+- `lazy`: known candidate whose applicability cannot be established without a target.
+- `unknown`: intentionally unresolved rather than guessed.
+
+## Compare agents
 
 ```bash
 agentwhich compare \
-  --cwd services/payments \
-  --agents codex,claude,gemini
+  --cwd . \
+  --target src/api/handler.ts \
+  --agents codex,claude,gemini,copilot
 ```
 
-JSON for scripts or CI:
+Use `--format json` for scripts and CI.
 
-```bash
-agentwhich compare --cwd . --agents codex,claude --format json
-```
+## v0.2 highlights
 
-If `.git` is not available or you want deterministic fixture behavior, provide the root explicitly:
-
-```bash
-agentwhich compare --repo ./examples/mixed-repo --cwd ./examples/mixed-repo/services/payments
-```
-
-## v0.1 support
-
-| Agent | Startup hierarchy | Imports | Overrides | Lazy candidates |
-|---|---:|---:|---:|---:|
-| Codex | ✅ | n/a | ✅ | n/a |
-| Claude Code | ✅ | ✅ | n/a | ✅ conservative |
-| Gemini CLI | ✅ | ✅ | n/a | ✅ conservative |
-| GitHub Copilot CLI | planned | planned | planned | planned |
-
-The runtime agent is always the final authority. `agentwhich` intentionally says **unknown/candidate** instead of inventing behavior where vendor semantics are dynamic or underspecified.
-
-## What it does not do
-
-- does not call an LLM
-- does not rewrite your instruction files
-- does not execute commands found inside Markdown
-- does not judge whether your instructions are “good”
-- does not upload repository context
-- does not promise that a model will obey an instruction
-
-That narrow scope is the feature.
-
-## Privacy and security
-
-By default, instruction bodies are never printed. `agentwhich` reports local paths, resolution reasons, sizes, line counts and SHA-256 hashes. Imports are read as data only; nothing discovered in Markdown is executed.
-
-## Roadmap
-
-- **v0.1** — Codex, Claude Code and Gemini CLI; `explain`, `compare`, JSON output
-- **v0.2** — target-file simulation and path-scoped rules; GitHub Copilot CLI adapter
-- **v0.3** — `agentwhich check`, GitHub Action/SARIF, compatibility policy mode
-- **v1.0** — stable adapter contract and published compatibility matrix
+- Target-aware Claude `.claude/rules/**/*.md` evaluation via `paths:` frontmatter.
+- Target-aware Claude descendant `CLAUDE.md` / `CLAUDE.local.md` loading.
+- Claude inline `@path` imports, fenced/code-span skipping, and the documented four-hop limit.
+- Gemini JIT target-path context plus `context.fileName` from `.gemini/settings.json`.
+- GitHub Copilot CLI adapter covering personal, repository, agent, modular, and custom-directory instructions.
+- Copilot `applyTo` matching, supported `@path` imports, and identical-content deduplication.
+- `target` is now a first-class active phase in explain/compare output.
 
 ## Design rules
 
-1. **Read-only core.** Never edit an instruction file.
-2. **Offline core.** No model/API/telemetry dependency.
-3. **Unknown beats guessed.** Dynamic or undocumented behavior is labeled honestly.
-4. **Adapters stay independent.** Similar-looking vendors are not assumed to behave the same.
+1. **Read-only.** Never mutate the repository while resolving instructions.
+2. **Offline.** Resolution must not require vendor APIs or network access.
+3. **No instruction execution.** Markdown is data; `agentwhich` never executes commands it finds.
+4. **Unknown beats guessed.** When vendor behavior is ambiguous, surface a candidate/warning instead of inventing precedence.
+5. **Adapters stay independent.** Each agent resolver models its own documented behavior.
 
-## Contributing
+## Scope
 
-Resolver changes should include a regression fixture and link to authoritative vendor behavior when possible. Real-world weird monorepo layouts are especially welcome as issues.
+`agentwhich` is not an AI assistant, prompt manager, RAG layer, or agent framework. It is a small diagnostic tool for one problem:
+**instruction discovery and drift across coding agents.**
 
-## License
+## Roadmap
 
-MIT.
+- **v0.3:** `agentwhich check`, CI policy assertions, GitHub Action/SARIF output.
+- **v1.0:** stable adapter contract and versioned vendor compatibility matrix.
+
+## Development
+
+```bash
+ruff check .
+pytest
+python -m build
+```
+
+MIT licensed.

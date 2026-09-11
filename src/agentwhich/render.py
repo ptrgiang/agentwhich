@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from .compare import Comparison
-from .model import ResolutionResult, display_path
+from .model import ResolutionResult, display_path, is_active
 
 
 def _size(value: int) -> str:
@@ -21,17 +21,21 @@ def render_result(result: ResolutionResult, fmt: str = 'text') -> str:
         f'Agent: {result.agent}',
         f'Repository: {result.repository}',
         f'Working directory: {result.cwd}',
-        '',
     ]
-    active = [item for item in result.layers if item.phase in {'startup', 'import'}]
-    lazy = [item for item in result.layers if item.phase not in {'startup', 'import'}]
+    if result.target is not None:
+        lines.append(f'Target: {result.target}')
+    lines.append('')
 
-    lines.append('ACTIVE / STARTUP')
+    active = [item for item in result.layers if is_active(item)]
+    inactive = [item for item in result.layers if not is_active(item)]
+
+    lines.append('ACTIVE')
     if not active:
         lines.append('  (none)')
     for item in active:
         prefix = f'{item.order}.' if item.order is not None else '-'
-        lines.append(f'  {prefix} {display_path(item.path, result.repository)}')
+        phase = item.phase.upper()
+        lines.append(f'  {prefix} [{phase}] {display_path(item.path, result.repository)}')
         lines.append(f'     {item.reason} · {_size(item.byte_count)} · {item.line_count} lines')
 
     if result.skipped:
@@ -40,10 +44,10 @@ def render_result(result: ResolutionResult, fmt: str = 'text') -> str:
             lines.append(f'  - {display_path(item.path, result.repository)}')
             lines.append(f'    {item.reason}')
 
-    if lazy:
-        lines.extend(['', 'LAZY / TARGET-DEPENDENT'])
-        for item in lazy:
-            lines.append(f'  ? {display_path(item.path, result.repository)}')
+    if inactive:
+        lines.extend(['', 'LAZY / UNKNOWN'])
+        for item in inactive:
+            lines.append(f'  ? [{item.phase.upper()}] {display_path(item.path, result.repository)}')
             lines.append(f'    {item.reason}')
 
     if result.warnings:
@@ -73,14 +77,14 @@ def render_comparison(comparison: Comparison, fmt: str = 'text') -> str:
     lines: list[str] = []
     for result in comparison.results:
         lines.extend([result.agent.upper(), '-' * len(result.agent)])
-        active = [item for item in result.layers if item.phase in {'startup', 'import'}]
+        active = [item for item in result.layers if is_active(item)]
         if not active:
-            lines.append('  (no startup sources found)')
+            lines.append('  (no active sources found)')
         for item in active:
-            lines.append(f'  {item.order or "-":>2} {display_path(item.path, repo)}')
-        lazy_count = sum(item.phase not in {'startup', 'import'} for item in result.layers)
+            lines.append(f'  {item.order or "-":>2} [{item.phase[0].upper()}] {display_path(item.path, repo)}')
+        lazy_count = sum(not is_active(item) for item in result.layers)
         if lazy_count:
-            lines.append(f'   ? {lazy_count} lazy/target-dependent candidate(s)')
+            lines.append(f'   ? {lazy_count} lazy/unknown candidate(s)')
         lines.append('')
 
     lines.append('DIFF')

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 Phase = Literal['startup', 'import', 'lazy', 'target', 'unknown']
+ACTIVE_PHASES = frozenset({'startup', 'import', 'target'})
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,7 @@ class ResolutionResult:
     agent: str
     repository: Path
     cwd: Path
+    target: Path | None = None
     layers: list[InstructionLayer] = field(default_factory=list)
     skipped: list[InstructionLayer] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -42,10 +44,15 @@ class ResolutionResult:
             'agent': self.agent,
             'repository': str(self.repository),
             'cwd': str(self.cwd),
+            'target': str(self.target) if self.target is not None else None,
             'layers': [layer.to_dict(self.repository) for layer in self.layers],
             'skipped': [layer.to_dict(self.repository) for layer in self.skipped],
             'warnings': self.warnings,
         }
+
+
+def is_active(layer: InstructionLayer) -> bool:
+    return layer.selected and layer.phase in ACTIVE_PHASES
 
 
 def display_path(path: Path, repo: Path | None = None) -> str:

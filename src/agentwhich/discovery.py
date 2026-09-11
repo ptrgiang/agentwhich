@@ -34,6 +34,37 @@ def path_chain(repo: Path, cwd: Path) -> list[Path]:
     return chain
 
 
+def target_directory(repo: Path, target: Path | None) -> Path | None:
+    if target is None:
+        return None
+    target = target.resolve(strict=False)
+    directory = target if target.is_dir() else target.parent
+    try:
+        directory.relative_to(repo.resolve(strict=False))
+    except ValueError as exc:
+        raise ValueError(f'target {target} is outside repository {repo}') from exc
+    return directory
+
+
+def descendant_chain(repo: Path, cwd: Path, target: Path | None) -> list[Path]:
+    directory = target_directory(repo, target)
+    if directory is None:
+        return []
+    cwd = cwd.resolve(strict=False)
+    try:
+        rel = directory.relative_to(cwd)
+    except ValueError:
+        return []
+    if str(rel) == '.':
+        return []
+    chain: list[Path] = []
+    cursor = cwd
+    for part in rel.parts:
+        cursor = cursor / part
+        chain.append(cursor)
+    return chain
+
+
 def file_metadata(path: Path) -> tuple[int, int, str]:
     try:
         raw = path.read_bytes()

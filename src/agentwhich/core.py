@@ -20,5 +20,10 @@ def resolve(
 
     cwd_path = Path(cwd).expanduser().resolve(strict=False)
     repo_path = Path(repo).expanduser().resolve(strict=False) if repo is not None else repository_root(cwd_path)
-    target_path = Path(target).expanduser().resolve(strict=False) if target is not None else None
+    target_path = None
+    if target is not None:
+        target_input = Path(target).expanduser()
+        if not target_input.is_absolute():
+            target_input = cwd_path / target_input
+        target_path = target_input.resolve(strict=False)
     return RESOLVERS[agent].resolve(repo=repo_path, cwd=cwd_path, target=target_path)

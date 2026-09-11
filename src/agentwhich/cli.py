@@ -9,27 +9,33 @@ from .compare import compare_results
 from .core import resolve
 from .render import render_comparison, render_result
 
+VERSION = '0.2.0'
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='agentwhich',
         description='which + diff for AI coding instructions',
     )
-    parser.add_argument('--version', action='version', version='agentwhich 0.1.0')
+    parser.add_argument('--version', action='version', version=f'agentwhich {VERSION}')
     sub = parser.add_subparsers(dest='command', required=True)
 
     explain = sub.add_parser('explain', help='explain instruction sources for one agent')
     explain.add_argument('--agent', required=True, choices=sorted(RESOLVERS))
     explain.add_argument('--cwd', default='.', help='working directory to resolve from')
     explain.add_argument('--repo', default=None, help='repository root; auto-detected from .git by default')
-    explain.add_argument('--target', default=None, help='optional target file (partial support in v0.1)')
+    explain.add_argument('--target', default=None, help='optional target file for path/JIT-scoped instructions')
     explain.add_argument('--format', choices=('text', 'json'), default='text')
 
     compare = sub.add_parser('compare', help='compare instruction sources across agents')
-    compare.add_argument('--agents', default='codex,claude,gemini', help='comma-separated agent names')
+    compare.add_argument(
+        '--agents',
+        default='codex,claude,gemini,copilot',
+        help='comma-separated agent names',
+    )
     compare.add_argument('--cwd', default='.', help='working directory to resolve from')
     compare.add_argument('--repo', default=None, help='repository root; auto-detected from .git by default')
-    compare.add_argument('--target', default=None, help='optional target file (partial support in v0.1)')
+    compare.add_argument('--target', default=None, help='optional target file for path/JIT-scoped instructions')
     compare.add_argument('--format', choices=('text', 'json'), default='text')
     return parser
 

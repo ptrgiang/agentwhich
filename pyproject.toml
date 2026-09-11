@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentwhich"
-version = "0.2.0"
-description = "which + diff for AI coding instructions"
+version = "0.3.0"
+description = "which + diff + check for AI coding-agent instructions"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "ptrgiang" }]
-keywords = ["ai", "coding-agents", "codex", "claude-code", "gemini-cli", "github-copilot", "developer-tools", "cli"]
+keywords = ["ai", "coding-agents", "codex", "claude-code", "gemini-cli", "github-copilot", "sarif", "developer-tools", "cli"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

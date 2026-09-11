@@ -1,9 +1,9 @@
 # agentwhich
 
-`which` + `diff` + `check` for AI coding-agent instructions.
+Inspect, diff, and enforce AI coding-agent instructions.
 
 `agentwhich` answers a deceptively hard question: **what instruction files will this coding agent actually see here?**
-It works offline and read-only: no LLM, no API key, no network, no telemetry, and no runtime dependencies.
+It stays offline and read-only: no LLM, no API key, no network, no telemetry, and no Python runtime dependencies.
 
 ## Supported agents
 
@@ -45,9 +45,67 @@ agentwhich compare \
 
 Use `--format json` for scripts and CI.
 
-## Enforce a policy
+## See what a PR changed
 
-v0.3 adds `agentwhich check`: turn instruction discovery into a CI gate.
+v0.4 adds Git-aware impact analysis without checking out or mutating either ref:
+
+```bash
+agentwhich changed \
+  --base origin/main \
+  --head HEAD \
+  --agents codex,claude,gemini,copilot
+```
+
+`changed` uses the merge base of `--base` and `--head`, matching normal pull-request semantics. It evaluates only changed paths and reports instruction layers that were added, removed, content-changed, phase-changed, or reordered.
+
+A changed instruction source whose full scope cannot be proven is reported separately as **potential broader impact**. It is not silently promoted to confirmed impact.
+
+Use it as a CI gate only when desired:
+
+```bash
+agentwhich changed --base origin/main --head HEAD --fail-on-impact
+```
+
+Exit codes:
+
+- `0`: no confirmed impact, or impact is only being reported.
+- `1`: confirmed impact was found and `--fail-on-impact` was supplied.
+- `2`: Git, configuration, or usage error.
+
+For monorepos, point `--cwd` at one package to scope both changed paths and startup hierarchy:
+
+```bash
+agentwhich changed \
+  --cwd services/payments \
+  --base origin/main \
+  --head HEAD
+```
+
+The default limit is 200 changed paths. Narrow `--cwd` or use `--max-targets 0` to disable the limit.
+
+## Snapshot effective context
+
+Emit a deterministic, repository-local context snapshot with path, phase, order, and SHA-256 for each active layer:
+
+```bash
+agentwhich snapshot --target src/api/handler.ts --format json
+```
+
+Snapshot a historical Git ref without checking it out:
+
+```bash
+agentwhich snapshot \
+  --ref v0.3.0 \
+  --target src/api/handler.ts \
+  --output agentwhich-snapshot.json
+```
+
+Repeat `--target` to capture multiple target paths. When no target is provided, `snapshot` captures startup context.
+
+Git is required only for `changed` and `snapshot --ref`. The Python package itself still has zero runtime dependencies.
+See [`docs/impact.md`](docs/impact.md) for ref semantics, monorepo usage, and limitations.
+
+## Enforce a policy
 
 Create `.agentwhich.toml`:
 
@@ -73,7 +131,7 @@ Then run:
 agentwhich check --cwd .
 ```
 
-Exit codes are intentionally CI-friendly:
+Policy exit codes are intentionally CI-friendly:
 
 - `0`: policy passed.
 - `1`: policy violation.
@@ -95,7 +153,7 @@ agentwhich check \
 
 ## GitHub Action
 
-The repository is also a composite GitHub Action. It can generate SARIF, optionally upload it, and fail the job after policy violations are reported.
+The repository is also a composite GitHub Action for policy enforcement. It can generate SARIF, optionally upload it, and fail the job after policy violations are reported.
 
 ```yaml
 name: agentwhich
@@ -114,31 +172,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ptrgiang/agentwhich@v0.3.0
+      - uses: ptrgiang/agentwhich@v0.4.0
         with:
           policy: .agentwhich.toml
           upload-sarif: 'true'
 ```
 
-Set `upload-sarif: 'false'` when you only want the policy gate or when Code Scanning upload is unavailable.
+For PR impact analysis, fetch Git history and run the CLI after installation:
 
-## v0.3 highlights
+```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 0
+- uses: ptrgiang/agentwhich@v0.4.0
+  with:
+    policy: .agentwhich.toml
+    upload-sarif: 'false'
+- run: agentwhich changed --base "${{ github.event.pull_request.base.sha }}" --head HEAD
+```
 
-- `agentwhich check` with deterministic policy assertions.
-- `.agentwhich.toml` with per-agent `require`, `forbid`, and `max_active` rules.
-- Optional gates for missing instructions, warnings, divergence, and required targets.
-- Text, JSON, and SARIF output.
-- Composite GitHub Action with optional Code Scanning upload.
-- Stable rule IDs (`AW001`–`AW007`) for CI integrations.
+## v0.4 highlights
+
+- `agentwhich snapshot` for deterministic repo-local context snapshots.
+- Historical snapshots from any Git ref without checkout.
+- `agentwhich changed` with merge-base PR semantics.
+- Changed-file-aware target evaluation with content, phase, and ordering diffs.
+- Conservative reporting of instruction-source changes whose broader scope cannot be proven.
+- `--cwd` scoping for monorepo/package workflows.
+- Optional `--fail-on-impact` CI gate and configurable target cap.
 
 ## Design rules
 
-1. **Read-only.** Never mutate the repository while resolving instructions.
-2. **Offline.** Resolution and policy evaluation must not require vendor APIs or network access.
+1. **Read-only.** Never checkout, rewrite, or mutate the repository while resolving or comparing instructions.
+2. **Offline.** Resolution, policy evaluation, snapshots, and Git-ref analysis require no vendor APIs or network access.
 3. **No instruction execution.** Markdown is data; `agentwhich` never executes commands it finds.
-4. **Unknown beats guessed.** When vendor behavior is ambiguous, surface a candidate/warning instead of inventing precedence.
+4. **Unknown beats guessed.** Potential source impact stays potential unless target resolution proves it.
 5. **Adapters stay independent.** Each agent resolver models its own documented behavior.
-6. **CI must be deterministic.** Policy rules ignore user-global instruction files.
+6. **CI must be deterministic.** Policy and snapshots ignore user-global instruction files.
 
 ## Scope
 
@@ -147,8 +217,8 @@ Set `upload-sarif: 'false'` when you only want the policy gate or when Code Scan
 
 ## Roadmap
 
-- **v0.3:** policy checks, SARIF, and GitHub Action.
-- **v0.4:** baseline snapshots and changed-file / monorepo policy workflows.
+- **v0.4:** snapshots, PR impact analysis, and monorepo scoping.
+- **v0.5:** baseline-file comparison, richer CI annotations, and performance work for very large monorepos.
 - **v1.0:** stable adapter contract and versioned vendor compatibility matrix.
 
 ## Development

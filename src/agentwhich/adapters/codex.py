@@ -36,10 +36,28 @@ class CodexResolver:
         existing_global = [p for p in global_candidates if p.is_file()]
         if existing_global:
             chosen = existing_global[0]
-            result.layers.append(layer(agent=self.name, path=chosen, phase='startup', scope='global', reason='global Codex instruction file', order=order))
+            result.layers.append(
+                layer(
+                    agent=self.name,
+                    path=chosen,
+                    phase='startup',
+                    scope='global',
+                    reason='global Codex instruction file',
+                    order=order,
+                )
+            )
             order += 1
             for skipped in existing_global[1:]:
-                result.skipped.append(layer(agent=self.name, path=skipped, phase='startup', scope='global', reason=f'shadowed by {chosen.name}', selected=False))
+                result.skipped.append(
+                    layer(
+                        agent=self.name,
+                        path=skipped,
+                        phase='startup',
+                        scope='global',
+                        reason=f'shadowed by {chosen.name}',
+                        selected=False,
+                    )
+                )
 
         fallback_names = self._fallback_names()
         candidate_names = ['AGENTS.override.md', 'AGENTS.md', *fallback_names]
@@ -49,11 +67,31 @@ class CodexResolver:
                 continue
             chosen = existing[0]
             scope = 'repository' if directory == repo else 'directory'
-            result.layers.append(layer(agent=self.name, path=chosen, phase='startup', scope=scope, reason=f'selected in {directory}', order=order))
+            result.layers.append(
+                layer(
+                    agent=self.name,
+                    path=chosen,
+                    phase='startup',
+                    scope=scope,
+                    reason=f'selected in {directory}',
+                    order=order,
+                )
+            )
             order += 1
             for skipped in existing[1:]:
-                result.skipped.append(layer(agent=self.name, path=skipped, phase='startup', scope=scope, reason=f'shadowed by {chosen.name} in the same directory', selected=False))
+                result.skipped.append(
+                    layer(
+                        agent=self.name,
+                        path=skipped,
+                        phase='startup',
+                        scope=scope,
+                        reason=f'shadowed by {chosen.name} in the same directory',
+                        selected=False,
+                    )
+                )
 
         if target is not None:
-            result.warnings.append('Codex target-file simulation is not required for AGENTS.md startup resolution in v0.1.')
+            result.warnings.append(
+                'Codex target-file simulation is not required for AGENTS.md startup resolution in v0.1.'
+            )
         return result

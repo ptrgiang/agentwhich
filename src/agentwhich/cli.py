@@ -11,7 +11,10 @@ from .render import render_comparison, render_result
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog='agentwhich', description='which + diff for AI coding instructions')
+    parser = argparse.ArgumentParser(
+        prog='agentwhich',
+        description='which + diff for AI coding instructions',
+    )
     parser.add_argument('--version', action='version', version='agentwhich 0.1.0')
     sub = parser.add_subparsers(dest='command', required=True)
 
@@ -31,11 +34,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _optional_path(value: str | None) -> Path | None:
+    return Path(value) if value else None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == 'explain':
-            result = resolve(args.agent, cwd=Path(args.cwd), repo=Path(args.repo) if args.repo else None, target=Path(args.target) if args.target else None)
+            result = resolve(
+                args.agent,
+                cwd=Path(args.cwd),
+                repo=_optional_path(args.repo),
+                target=_optional_path(args.target),
+            )
             print(render_result(result, args.format))
             return 0
 
@@ -45,7 +57,15 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(f'unsupported agent(s): {", ".join(unknown)}')
         if len(agents) < 2:
             raise ValueError('compare requires at least two agents')
-        results = [resolve(agent, cwd=Path(args.cwd), repo=Path(args.repo) if args.repo else None, target=Path(args.target) if args.target else None) for agent in agents]
+        results = [
+            resolve(
+                agent,
+                cwd=Path(args.cwd),
+                repo=_optional_path(args.repo),
+                target=_optional_path(args.target),
+            )
+            for agent in agents
+        ]
         print(render_comparison(compare_results(results), args.format))
         return 0
     except (OSError, ValueError) as exc:

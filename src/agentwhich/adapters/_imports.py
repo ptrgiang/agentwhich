@@ -34,7 +34,15 @@ def resolve_markdown_imports(agent: str, roots: list[InstructionLayer]) -> tuple
             if not target.is_file():
                 warnings.append(f'missing import referenced by {source.name}: {raw}')
                 continue
-            imported.append(layer(agent=agent, path=target, phase='import', scope='import', reason=f'imported by {source.name}'))
+            imported.append(
+                layer(
+                    agent=agent,
+                    path=target,
+                    phase='import',
+                    scope='import',
+                    reason=f'imported by {source.name}',
+                )
+            )
             walk(target, depth + 1)
 
     for root in roots:

@@ -7,7 +7,12 @@ from .discovery import repository_root
 from .model import ResolutionResult
 
 
-def resolve(agent: str, cwd: Path | str = '.', repo: Path | str | None = None, target: Path | str | None = None) -> ResolutionResult:
+def resolve(
+    agent: str,
+    cwd: Path | str = '.',
+    repo: Path | str | None = None,
+    target: Path | str | None = None,
+) -> ResolutionResult:
     agent = agent.lower().strip()
     if agent not in RESOLVERS:
         supported = ', '.join(sorted(RESOLVERS))

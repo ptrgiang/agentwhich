@@ -40,4 +40,9 @@ def compare_results(results: list[ResolutionResult]) -> Comparison:
             if item.sha256 and item.phase in {'startup', 'import'}:
                 hashes.setdefault(item.sha256, []).append((result.agent, item.path))
     duplicate_hashes = {digest: items for digest, items in hashes.items() if len({agent for agent, _ in items}) > 1}
-    return Comparison(results=results, by_agent_only=by_agent_only, shared_paths=shared, duplicate_hashes=duplicate_hashes)
+    return Comparison(
+        results=results,
+        by_agent_only=by_agent_only,
+        shared_paths=shared,
+        duplicate_hashes=duplicate_hashes,
+    )
